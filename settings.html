@@ -1,0 +1,139 @@
+<div class="comfy-gen-settings">
+    <div class="inline-drawer">
+        <div class="inline-drawer-toggle inline-drawer-header">
+            <b class="comfy-header-title">🍺 霓虹酒馆</b>
+            <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+        </div>
+        <div class="inline-drawer-content">
+            <div class="comfy_block flex-container flexGap5 alignItemsCenter">
+                <input id="comfy_enabled" type="checkbox" />
+                <label for="comfy_enabled" class="checkbox-label">启用蠢酒馆生图</label>
+            </div>
+
+            <hr class="sysHR" />
+
+            <div class="comfy-section">
+                <h4 class="comfy-section-title">服务器连接</h4>
+
+                <label for="comfy_base_url">服务器地址</label>
+                <input id="comfy_base_url" type="text" class="text_pole wide100p"
+                       placeholder="https://your-server.com" />
+
+                <label for="comfy_api_key" style="margin-top: 10px;">API Key</label>
+                <div class="comfy_block flex-container flexGap5">
+                    <input id="comfy_api_key" type="password" class="text_pole"
+                           placeholder="cg_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" style="flex: 1;" />
+                    <button id="comfy_toggle_key" type="button" class="menu_button menu_button_icon" title="显示/隐藏">
+                        👁️
+                    </button>
+                </div>
+                <div class="comfy-hint">
+                    在 <a href="#" id="comfy_get_key_link" target="_blank">服务器个人中心</a> 获取 API Key
+                </div>
+
+                <div class="comfy_block flex-container flexGap5 alignItemsCenter" style="margin-top: 8px;">
+                    <input id="comfy_verify_btn" type="button" class="menu_button" value="验证连接" />
+                    <input id="comfy_disconnect_btn" type="button" class="menu_button menu_button_icon" value="断开" />
+                    <span id="comfy_login_status" class="comfy-status">未连接</span>
+                </div>
+
+                <!-- 服务器选择 -->
+                <div id="comfy_server_section" style="margin-top: 10px; display: none;">
+                    <label for="comfy_server_select">ComfyUI 服务器</label>
+                    <div class="comfy_block flex-container flexGap5">
+                        <select id="comfy_server_select" class="text_pole" style="flex: 1;">
+                            <option value="">-- 请选择服务器 --</option>
+                        </select>
+                        <button id="comfy_refresh_servers" type="button" class="menu_button menu_button_icon" title="刷新服务器列表">
+                            🔄
+                        </button>
+                    </div>
+                    <div id="comfy_server_status" class="comfy-hint"></div>
+                </div>
+
+                <div class="comfy_block flex-container flexGap5 alignItemsCenter" style="margin-top: 5px;">
+                    <button id="comfy_refresh_presets" type="button" class="menu_button menu_button_icon">刷新预设</button>
+                    <span id="comfy_preset_count" class="comfy-hint"></span>
+                </div>
+            </div>
+
+            <hr class="sysHR" />
+
+            <div class="comfy-section">
+                <h4 class="comfy-section-title">标记格式</h4>
+
+                <div class="comfy_block flex-container flexGap5">
+                    <div style="flex: 1;">
+                        <label for="comfy_start_marker">开始标记</label>
+                        <input id="comfy_start_marker" type="text" class="text_pole wide100p" value="image###" />
+                    </div>
+                    <div style="flex: 1;">
+                        <label for="comfy_end_marker">结束标记</label>
+                        <input id="comfy_end_marker" type="text" class="text_pole wide100p" value="###" />
+                    </div>
+                </div>
+                <div class="comfy-hint">
+                    示例: <code>image###美丽的女孩,动漫风格###</code>
+                </div>
+            </div>
+
+            <hr class="sysHR" />
+
+            <div class="comfy-section">
+                <h4 class="comfy-section-title">全局提示词</h4>
+
+                <label for="comfy_global_positive">正向提示词</label>
+                <textarea id="comfy_global_positive" class="text_pole wide100p" rows="3"
+                          placeholder="masterpiece,best quality,amazing quality,absurdres,"></textarea>
+                <div class="comfy-hint">自动添加到每次生成请求的开头</div>
+
+                <label for="comfy_global_negative" style="margin-top: 10px;">负向提示词</label>
+                <textarea id="comfy_global_negative" class="text_pole wide100p" rows="2"
+                          placeholder="lowres,bad anatomy,bad hands,text,error,"></textarea>
+            </div>
+
+            <hr class="sysHR" />
+
+            <div class="comfy-section">
+                <h4 class="comfy-section-title">高级设置</h4>
+
+                <div class="comfy_block flex-container flexGap5 alignItemsCenter">
+                    <input id="comfy_auto_retry" type="checkbox" checked />
+                    <label for="comfy_auto_retry" class="checkbox-label">自动重试失败的任务</label>
+                </div>
+
+                <div class="comfy_block flex-container flexGap5 alignItemsCenter">
+                    <input id="comfy_show_prompt" type="checkbox" checked />
+                    <label for="comfy_show_prompt" class="checkbox-label">在结果中显示提示词</label>
+                </div>
+
+                <div class="comfy_block flex-container flexGap5 alignItemsCenter">
+                    <input id="comfy_nsfw_blur" type="checkbox" />
+                    <label for="comfy_nsfw_blur" class="checkbox-label">默认模糊生成的图片</label>
+                </div>
+
+                <div class="comfy_block flex-container flexGap5 alignItemsCenter">
+                    <input id="comfy_fancy_loading" type="checkbox" checked />
+                    <label for="comfy_fancy_loading" class="checkbox-label">霓虹加载动画</label>
+                </div>
+            </div>
+
+            <hr class="sysHR" />
+
+            <div class="comfy-section">
+                <h4 class="comfy-section-title">图片缓存</h4>
+
+                <div class="comfy_block flex-container flexGap5 alignItemsCenter">
+                    <input id="comfy_enable_cache" type="checkbox" checked />
+                    <label for="comfy_enable_cache" class="checkbox-label">启用生成缓存</label>
+                </div>
+                <div class="comfy-hint">刷新页面后自动恢复已生成的图片</div>
+
+                <div class="comfy_block flex-container flexGap5 alignItemsCenter" style="margin-top: 8px;">
+                    <button id="comfy_clear_cache" type="button" class="menu_button menu_button_icon">清除缓存</button>
+                    <span id="comfy_cache_stats" class="comfy-hint"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

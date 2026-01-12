@@ -1,0 +1,18 @@
+{
+    "display_name": "霓虹酒馆 - 蠢酒馆",
+    "loading_order": 100,
+    "requires": [],
+    "optional": [],
+    "js": "index.js",
+    "css": "style.css",
+    "author": "CMJLevi",
+    "version": "1.0.0",
+    "homePage": "https://github.com/CMJLevi/SillyTavern-ComfyGen",
+    "auto_update": true,
+    "minimum_client_version": "1.12.0",
+    "dependencies": [],
+    "generate_interceptor": null,
+    "i18n": {
+        "zh-cn": "i18n/zh-cn.json"
+    }
+}
