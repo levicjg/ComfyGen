@@ -31,6 +31,7 @@ const defaultSettings = {
 
 const CACHE_KEY = 'comfygen_image_cache';
 const MAX_CACHE_ENTRIES = 500;
+const MAX_POLL_ATTEMPTS = 200; // ~5 minutes at 1500ms interval
 
 let presetsCache = [];
 let serversCache = [];
@@ -955,7 +956,9 @@ async function handleGenClick(event) {
             let lastProgress = 0;
             const pollInterval = settings.pollInterval || 1500;
 
-            while (true) {
+            let pollAttempts = 0;
+            while (pollAttempts < MAX_POLL_ATTEMPTS) {
+                pollAttempts++;
                 await delay(pollInterval);
 
                 const statusRes = await pollStatus(promptId, serverUrl);
@@ -988,6 +991,11 @@ async function handleGenClick(event) {
                 } else if (status === 'failed') {
                     throw new Error(error || '生成失败');
                 }
+            }
+
+            // Check if we exceeded max attempts
+            if (pollAttempts >= MAX_POLL_ATTEMPTS) {
+                throw new Error('生成超时，请重试（已等待约5分钟）');
             }
 
             if (!lastError) break;
