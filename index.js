@@ -1023,7 +1023,7 @@ function showVideoPromptDialog(defaultPrompt) {
             <div style="background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3);
                         border-radius: 8px; padding: 12px; margin-bottom: 16px;">
                 <div style="color: #ef4444; font-size: 13px; line-height: 1.6;">
-                    ⚠️ <strong>重要提示：</strong>NSFW 内容大概率生成失败，请使用 SFW 内容
+                    ⚠️ <strong>重要提示：</strong>NSFW 内容大概率生成失败，请生成 SFW 内容
                 </div>
             </div>
             <label style="display: block; color: rgba(255,255,255,0.9); margin-bottom: 8px; font-size: 14px;">
