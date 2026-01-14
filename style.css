@@ -635,13 +635,11 @@
     right: 8px;
     display: flex;
     gap: 6px;
-    opacity: 0;
+    opacity: 1;
     transition: opacity var(--comfy-transition);
 }
 
-.comfy-image-wrapper:hover .comfy-image-actions {
-    opacity: 1;
-}
+/* 移除 hover 显示逻辑，按钮始终可见 */
 
 .comfy-action-btn {
     display: flex;
@@ -755,4 +753,184 @@
     to {
         transform: translateY(-50%) rotate(360deg);
     }
+}
+
+/* ============ 视频生成加载动画 (霓虹风格) ============ */
+.comfy-video-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(10, 10, 18, 0.95) 0%, rgba(18, 18, 26, 0.95) 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    z-index: 10;
+    backdrop-filter: blur(8px);
+    border-radius: var(--comfy-radius);
+    overflow: hidden;
+}
+
+/* 背景光效动画 */
+.comfy-video-overlay::before {
+    content: '';
+    position: absolute;
+    inset: -50%;
+    background: radial-gradient(circle at center, rgba(139, 92, 246, 0.2) 0%, transparent 70%);
+    animation: video-glow-pulse 3s ease-in-out infinite;
+}
+
+@keyframes video-glow-pulse {
+    0%, 100% { opacity: 0.3; transform: scale(0.8); }
+    50% { opacity: 0.6; transform: scale(1.2); }
+}
+
+/* 扫描线效果 */
+.comfy-video-overlay::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(139, 92, 246, 0.05) 2px,
+        rgba(139, 92, 246, 0.05) 4px
+    );
+    pointer-events: none;
+}
+
+.comfy-video-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+    position: relative;
+    z-index: 1;
+}
+
+/* 霓虹圆环加载器 */
+.comfy-video-spinner {
+    position: relative;
+    width: 80px;
+    height: 80px;
+}
+
+.comfy-video-spinner::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    border-top: 3px solid rgb(139, 92, 246);
+    border-right: 3px solid rgba(139, 92, 246, 0.6);
+    animation: video-ring-spin 1.2s linear infinite;
+    box-shadow:
+        0 0 15px rgba(139, 92, 246, 0.5),
+        inset 0 0 15px rgba(139, 92, 246, 0.3);
+}
+
+.comfy-video-spinner::after {
+    content: '📹';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    animation: video-icon-pulse 2s ease-in-out infinite;
+    filter: drop-shadow(0 0 10px rgba(139, 92, 246, 0.8));
+}
+
+@keyframes video-ring-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes video-icon-pulse {
+    0%, 100% { opacity: 0.8; transform: scale(0.95); }
+    50% { opacity: 1; transform: scale(1.05); }
+}
+
+.comfy-video-loading-text {
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+    font-family: 'Courier New', monospace;
+    text-shadow:
+        0 0 10px rgba(139, 92, 246, 0.8),
+        0 0 20px rgba(139, 92, 246, 0.5),
+        0 0 30px rgba(139, 92, 246, 0.3);
+    letter-spacing: 1px;
+    animation: video-text-glow 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes video-text-glow {
+    from {
+        text-shadow:
+            0 0 10px rgba(139, 92, 246, 0.8),
+            0 0 20px rgba(139, 92, 246, 0.5);
+    }
+    to {
+        text-shadow:
+            0 0 15px rgba(139, 92, 246, 1),
+            0 0 30px rgba(139, 92, 246, 0.7),
+            0 0 45px rgba(139, 92, 246, 0.5);
+    }
+}
+
+/* 进度点 */
+.comfy-video-progress-dots {
+    display: flex;
+    gap: 10px;
+}
+
+.comfy-video-progress-dots span {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgb(139, 92, 246);
+    box-shadow: 0 0 15px rgba(139, 92, 246, 0.6);
+    animation: video-dot-bounce 1.4s ease-in-out infinite;
+}
+
+.comfy-video-progress-dots span:nth-child(1) { animation-delay: 0s; }
+.comfy-video-progress-dots span:nth-child(2) { animation-delay: 0.2s; }
+.comfy-video-progress-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes video-dot-bounce {
+    0%, 100% { transform: scale(0.8); opacity: 0.5; }
+    50% { transform: scale(1.2); opacity: 1; }
+}
+
+/* 视频播放器容器样式优化 */
+.comfy-video-section {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(139, 92, 246, 0.2);
+}
+
+.comfy-video-label {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 13px;
+    margin-bottom: 8px;
+    padding: 0 4px;
+    font-weight: 500;
+}
+
+.comfy-video-container {
+    border-radius: var(--comfy-radius);
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.comfy-video-player {
+    width: 100%;
+    max-width: 100%;
+    max-height: 450px;
+    display: block;
+    border-radius: var(--comfy-radius);
 }

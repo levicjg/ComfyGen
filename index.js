@@ -187,58 +187,128 @@ const IFRAME_INJECT_STYLES = `
 }
 .comfy-video-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 .comfy-video-section {
-    margin-top: 12px;
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(139, 92, 246, 0.2);
 }
 .comfy-video-label {
     color: rgba(255, 255, 255, 0.8);
     font-size: 13px;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
     padding: 0 4px;
+    font-weight: 500;
 }
 .comfy-video-container {
     border-radius: var(--comfy-radius);
     overflow: hidden;
+    background: rgba(0, 0, 0, 0.3);
 }
 .comfy-video-player {
     width: 100%;
-    max-height: 400px;
+    max-width: 100%;
+    max-height: 450px;
+    display: block;
     border-radius: var(--comfy-radius);
 }
 .comfy-video-overlay {
     position: absolute;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.85);
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(135deg, rgba(10, 10, 18, 0.95), rgba(18, 18, 26, 0.95));
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 12px;
-    z-index: 5;
-    backdrop-filter: blur(4px);
+    gap: 20px;
+    z-index: 10;
+    backdrop-filter: blur(8px);
+    border-radius: var(--comfy-radius);
+    overflow: hidden;
+}
+.comfy-video-overlay::before {
+    content: '';
+    position: absolute;
+    inset: -50%;
+    background: radial-gradient(circle at center, rgba(139, 92, 246, 0.2) 0%, transparent 70%);
+    animation: video-glow-pulse 3s ease-in-out infinite;
+}
+@keyframes video-glow-pulse {
+    0%, 100% { opacity: 0.3; transform: scale(0.8); }
+    50% { opacity: 0.6; transform: scale(1.2); }
 }
 .comfy-video-loading {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 16px;
+    gap: 24px;
+    position: relative;
+    z-index: 1;
 }
 .comfy-video-spinner {
-    width: 48px;
-    height: 48px;
-    border: 4px solid rgba(139, 92, 246, 0.2);
-    border-top: 4px solid rgb(139, 92, 246);
-    border-radius: 50%;
-    animation: comfy-spin 0.8s linear infinite;
+    position: relative;
+    width: 80px;
+    height: 80px;
 }
-@keyframes comfy-spin {
+.comfy-video-spinner::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    border-top: 3px solid rgb(139, 92, 246);
+    border-right: 3px solid rgba(139, 92, 246, 0.6);
+    animation: video-ring-spin 1.2s linear infinite;
+    box-shadow: 0 0 15px rgba(139, 92, 246, 0.5), inset 0 0 15px rgba(139, 92, 246, 0.3);
+}
+.comfy-video-spinner::after {
+    content: '📹';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    animation: video-icon-pulse 2s ease-in-out infinite;
+    filter: drop-shadow(0 0 10px rgba(139, 92, 246, 0.8));
+}
+@keyframes video-ring-spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
+@keyframes video-icon-pulse {
+    0%, 100% { opacity: 0.8; transform: scale(0.95); }
+    50% { opacity: 1; transform: scale(1.05); }
+}
 .comfy-video-loading-text {
-    color: rgb(139, 92, 246);
-    font-size: 15px;
-    font-weight: 500;
-    text-shadow: 0 0 10px rgba(139, 92, 246, 0.5);
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+    font-family: 'Courier New', monospace;
+    text-shadow: 0 0 10px rgba(139, 92, 246, 0.8), 0 0 20px rgba(139, 92, 246, 0.5), 0 0 30px rgba(139, 92, 246, 0.3);
+    letter-spacing: 1px;
+    animation: video-text-glow 1.5s ease-in-out infinite alternate;
+}
+@keyframes video-text-glow {
+    from { text-shadow: 0 0 10px rgba(139, 92, 246, 0.8), 0 0 20px rgba(139, 92, 246, 0.5); }
+    to { text-shadow: 0 0 15px rgba(139, 92, 246, 1), 0 0 30px rgba(139, 92, 246, 0.7), 0 0 45px rgba(139, 92, 246, 0.5); }
+}
+.comfy-video-progress-dots {
+    display: flex;
+    gap: 10px;
+}
+.comfy-video-progress-dots span {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgb(139, 92, 246);
+    box-shadow: 0 0 15px rgba(139, 92, 246, 0.6);
+    animation: video-dot-bounce 1.4s ease-in-out infinite;
+}
+.comfy-video-progress-dots span:nth-child(1) { animation-delay: 0s; }
+.comfy-video-progress-dots span:nth-child(2) { animation-delay: 0.2s; }
+.comfy-video-progress-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes video-dot-bounce {
+    0%, 100% { transform: scale(0.8); opacity: 0.5; }
+    50% { transform: scale(1.2); opacity: 1; }
 }
 .comfy-loading-container { margin-top: 12px; display: none; }
 .comfy-simple-loading {
@@ -1054,12 +1124,14 @@ function showVideoPromptDialog(defaultPrompt) {
         overlay.style.cssText = `
             position: fixed; inset: 0; background: rgba(0,0,0,0.7);
             display: flex; align-items: center; justify-content: center; z-index: 9999;
+            padding: 20px; overflow-y: auto;
         `;
 
         const dialog = document.createElement('div');
         dialog.style.cssText = `
             background: #1a1a1a; border-radius: 12px; padding: 24px;
             max-width: 500px; width: 90%; box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            max-height: 90vh; overflow-y: auto; margin: auto;
         `;
 
         dialog.innerHTML = `
@@ -1232,6 +1304,9 @@ function showVideoLoading(wrapper) {
             <div class="comfy-video-loading">
                 <div class="comfy-video-spinner"></div>
                 <div class="comfy-video-loading-text">📹 视频生成中...</div>
+                <div class="comfy-video-progress-dots">
+                    <span></span><span></span><span></span>
+                </div>
             </div>
         `;
         wrapper.appendChild(overlay);
