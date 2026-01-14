@@ -177,8 +177,16 @@ const IFRAME_INJECT_STYLES = `
 }
 .comfy-video-btn:hover { background: rgba(139, 92, 246, 0.9); }
 .comfy-video-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.comfy-video-container {
+.comfy-video-section {
     margin-top: 12px;
+}
+.comfy-video-label {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 13px;
+    margin-bottom: 6px;
+    padding: 0 4px;
+}
+.comfy-video-container {
     border-radius: var(--comfy-radius);
     overflow: hidden;
 }
@@ -937,11 +945,14 @@ function displayImages(resultDiv, images, prompt) {
 
         // 已有视频则显示播放器
         const videoPlayer = (img.videoURL && img.videoStatus === 'completed') ? `
-            <div class="comfy-video-container">
-                <video class="comfy-video-player" controls>
-                    <source src="${escapeHtml(img.videoURL)}" type="video/mp4">
-                    您的浏览器不支持视频播放
-                </video>
+            <div class="comfy-video-section">
+                <div class="comfy-video-label">📹 视频</div>
+                <div class="comfy-video-container">
+                    <video class="comfy-video-player" controls>
+                        <source src="${escapeHtml(img.videoURL)}" type="video/mp4">
+                        您的浏览器不支持视频播放
+                    </video>
+                </div>
             </div>
         ` : '';
 
@@ -992,6 +1003,76 @@ function displayError(resultDiv, message) {
 
 // ============ Video Generation Handler ============
 
+// 自定义视频提示词输入弹窗
+function showVideoPromptDialog(defaultPrompt) {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+            position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+            display: flex; align-items: center; justify-content: center; z-index: 9999;
+        `;
+
+        const dialog = document.createElement('div');
+        dialog.style.cssText = `
+            background: #1a1a1a; border-radius: 12px; padding: 24px;
+            max-width: 500px; width: 90%; box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        `;
+
+        dialog.innerHTML = `
+            <h3 style="margin: 0 0 16px 0; color: #fff; font-size: 18px;">📹 生成视频</h3>
+            <div style="background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3);
+                        border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+                <div style="color: #ef4444; font-size: 13px; line-height: 1.6;">
+                    ⚠️ <strong>重要提示：</strong>NSFW 内容大概率生成失败，请使用 SFW 内容
+                </div>
+            </div>
+            <label style="display: block; color: rgba(255,255,255,0.9); margin-bottom: 8px; font-size: 14px;">
+                视频生成提示词：
+            </label>
+            <input type="text" id="comfy-video-prompt-input"
+                   style="width: 100%; padding: 10px 12px; background: #2a2a2a; border: 1px solid #444;
+                          border-radius: 6px; color: #fff; font-size: 14px; box-sizing: border-box;"
+                   placeholder="留空使用默认提示词"
+                   value="${escapeHtml(defaultPrompt)}">
+            <div style="display: flex; gap: 12px; margin-top: 20px; justify-content: flex-end;">
+                <button id="comfy-video-cancel-btn"
+                        style="padding: 8px 20px; background: #444; border: none; border-radius: 6px;
+                               color: #fff; cursor: pointer; font-size: 14px;">
+                    取消
+                </button>
+                <button id="comfy-video-confirm-btn"
+                        style="padding: 8px 20px; background: rgb(139,92,246); border: none; border-radius: 6px;
+                               color: #fff; cursor: pointer; font-size: 14px; font-weight: 500;">
+                    确定生成
+                </button>
+            </div>
+        `;
+
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+
+        const input = dialog.querySelector('#comfy-video-prompt-input');
+        const confirmBtn = dialog.querySelector('#comfy-video-confirm-btn');
+        const cancelBtn = dialog.querySelector('#comfy-video-cancel-btn');
+
+        input.focus();
+        input.select();
+
+        const close = (value) => {
+            overlay.remove();
+            resolve(value);
+        };
+
+        confirmBtn.onclick = () => close(input.value);
+        cancelBtn.onclick = () => close(null);
+        overlay.onclick = (e) => { if (e.target === overlay) close(null); };
+        input.onkeydown = (e) => {
+            if (e.key === 'Enter') close(input.value);
+            if (e.key === 'Escape') close(null);
+        };
+    });
+}
+
 async function handleVideoGenClick(event) {
     const btn = event.target;
     if (btn.disabled) return;
@@ -1009,8 +1090,8 @@ async function handleVideoGenClick(event) {
     const settings = getSettings();
     const defaultPrompt = settings.defaultVideoPrompt || 'animate this image';
 
-    // 弹出提示词输入框
-    const prompt = window.prompt('输入视频生成提示词（留空使用默认）:', defaultPrompt);
+    // 弹出自定义提示词输入框
+    const prompt = await showVideoPromptDialog(defaultPrompt);
     if (prompt === null) return; // 用户取消
 
     const finalPrompt = prompt.trim() || defaultPrompt;
@@ -1098,13 +1179,15 @@ function hideVideoLoading(wrapper) {
 }
 
 function showVideoPlayer(wrapper, videoURL) {
-    let container = wrapper.querySelector('.comfy-video-container');
-    if (!container) {
-        container = document.createElement('div');
-        container.className = 'comfy-video-container';
-        wrapper.appendChild(container);
+    let section = wrapper.querySelector('.comfy-video-section');
+    if (!section) {
+        section = document.createElement('div');
+        section.className = 'comfy-video-section';
+        section.innerHTML = '<div class="comfy-video-label">📹 视频</div><div class="comfy-video-container"></div>';
+        wrapper.appendChild(section);
     }
 
+    const container = section.querySelector('.comfy-video-container');
     container.innerHTML = `
         <video class="comfy-video-player" controls>
             <source src="${escapeHtml(videoURL)}" type="video/mp4">
@@ -1114,13 +1197,15 @@ function showVideoPlayer(wrapper, videoURL) {
 }
 
 function showVideoError(wrapper, errorMsg) {
-    let container = wrapper.querySelector('.comfy-video-container');
-    if (!container) {
-        container = document.createElement('div');
-        container.className = 'comfy-video-container';
-        wrapper.appendChild(container);
+    let section = wrapper.querySelector('.comfy-video-section');
+    if (!section) {
+        section = document.createElement('div');
+        section.className = 'comfy-video-section';
+        section.innerHTML = '<div class="comfy-video-label">📹 视频</div><div class="comfy-video-container"></div>';
+        wrapper.appendChild(section);
     }
 
+    const container = section.querySelector('.comfy-video-container');
     container.innerHTML = `<div class="comfy-error">${escapeHtml(errorMsg)}</div>`;
 }
 
