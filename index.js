@@ -27,6 +27,7 @@ const defaultSettings = {
     enableNsfwBlur: false,
     enableCache: true,    // 启用生成缓存
     enableFancyLoading: true, // 启用酷炫加载动画
+    defaultVideoPrompt: 'animate this image', // 默认视频生成提示词
 };
 
 const CACHE_KEY = 'comfygen_image_cache';
@@ -158,6 +159,46 @@ const IFRAME_INJECT_STYLES = `
     text-decoration: none;
 }
 .comfy-action-btn:hover { background: rgba(99, 102, 241, 0.8); }
+.comfy-video-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: var(--comfy-radius-sm);
+    background: rgba(139, 92, 246, 0.7);
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+    text-decoration: none;
+}
+.comfy-video-btn:hover { background: rgba(139, 92, 246, 0.9); }
+.comfy-video-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.comfy-video-container {
+    margin-top: 12px;
+    border-radius: var(--comfy-radius);
+    overflow: hidden;
+}
+.comfy-video-player {
+    width: 100%;
+    max-height: 400px;
+    border-radius: var(--comfy-radius);
+}
+.comfy-video-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 5;
+}
+.comfy-video-loading {
+    color: #0ff;
+    font-size: 14px;
+    text-shadow: 0 0 10px #0ff;
+}
 .comfy-loading-container { margin-top: 12px; display: none; }
 .comfy-simple-loading {
     padding: 20px;
@@ -584,6 +625,28 @@ async function pollStatus(promptId, serverUrl) {
     return apiRequest(`/api/v1/generate/poll?${params}`);
 }
 
+// ============ Video API ============
+
+async function generateVideo(imageID, prompt) {
+    return apiRequest('/api/v1/video/generate', {
+        method: 'POST',
+        body: JSON.stringify({
+            sourceImageID: imageID,
+            prompt: prompt
+        })
+    });
+}
+
+async function getVideoStatus(videoID) {
+    return apiRequest(`/api/v1/video/status/${videoID}`);
+}
+
+async function deleteVideo(videoID) {
+    return apiRequest(`/api/v1/video/${videoID}`, {
+        method: 'DELETE'
+    });
+}
+
 // ============ UI Components ============
 
 /**
@@ -860,9 +923,33 @@ function displayImages(resultDiv, images, prompt) {
 
         const blurClass = isNsfw ? 'comfy-nsfw-blur' : '';
         const nsfwBadge = isNsfw ? '<div class="comfy-nsfw-badge">🔞 NSFW</div>' : '';
-        // 使用 data 属性存储 URL，通过事件委托处理点击
+
+        // 视频按钮（仅当有 historyId 时显示）
+        const hasHistoryId = img.historyId && img.historyId > 0;
+        const videoBtn = hasHistoryId ? `
+            <button class="comfy-video-btn comfy-gen-video-btn"
+                    title="${img.videoId ? '重新生成视频' : '生成视频'}">
+                📹
+            </button>
+        ` : '';
+
+        // 已有视频则显示播放器
+        const videoPlayer = (img.videoURL && img.videoStatus === 'completed') ? `
+            <div class="comfy-video-container">
+                <video class="comfy-video-player" controls>
+                    <source src="${escapeHtml(img.videoURL)}" type="video/mp4">
+                    您的浏览器不支持视频播放
+                </video>
+            </div>
+        ` : '';
+
+        // 使用 data 属性存储图片和视频信息
         return `
-            <div class="comfy-image-wrapper">
+            <div class="comfy-image-wrapper"
+                 data-history-id="${img.historyId || ''}"
+                 data-video-id="${img.videoId || ''}"
+                 data-video-status="${img.videoStatus || ''}"
+                 data-video-url="${escapeForDataAttr(img.videoURL || '')}">
                 ${nsfwBadge}
                 <img src="${escapeHtml(url)}"
                      class="comfy-result-img comfy-clickable-img ${blurClass}"
@@ -871,6 +958,7 @@ function displayImages(resultDiv, images, prompt) {
                      data-url="${escapeForDataAttr(url)}"
                      data-nsfw="${isNsfw ? '1' : ''}" />
                 <div class="comfy-image-actions">
+                    ${videoBtn}
                     <button class="comfy-action-btn comfy-copy-btn" data-url="${escapeForDataAttr(url)}" title="复制链接">
                         📋
                     </button>
@@ -878,6 +966,7 @@ function displayImages(resultDiv, images, prompt) {
                         ⬇️
                     </a>
                 </div>
+                ${videoPlayer}
             </div>
         `;
     }).filter(Boolean).join('');
@@ -897,6 +986,140 @@ function displayError(resultDiv, message) {
             <span class="comfy-error-text">${escapeHtml(message)}</span>
         </div>
     `;
+}
+
+// ============ Video Generation Handler ============
+
+async function handleVideoGenClick(event) {
+    const btn = event.target;
+    if (btn.disabled) return;
+
+    const wrapper = btn.closest('.comfy-image-wrapper');
+    if (!wrapper) return;
+
+    const imageData = wrapper.dataset;
+    const historyId = parseInt(imageData.historyId, 10);
+    if (!historyId) {
+        toastr.error('无法获取图片ID');
+        return;
+    }
+
+    const settings = getSettings();
+    const defaultPrompt = settings.defaultVideoPrompt || 'animate this image';
+
+    // 弹出提示词输入框
+    const prompt = window.prompt('输入视频生成提示词（留空使用默认）:', defaultPrompt);
+    if (prompt === null) return; // 用户取消
+
+    const finalPrompt = prompt.trim() || defaultPrompt;
+
+    btn.disabled = true;
+    const originalText = btn.textContent;
+    btn.textContent = '⏳';
+
+    try {
+        // 如果已有视频，先删除
+        const existingVideoId = imageData.videoId;
+        if (existingVideoId) {
+            await deleteVideo(parseInt(existingVideoId, 10));
+        }
+
+        // 生成新视频
+        const genRes = await generateVideo(historyId, finalPrompt);
+        if (genRes.code !== 0) {
+            throw new Error(genRes.message || '创建视频任务失败');
+        }
+
+        const { videoID } = genRes.data;
+        wrapper.dataset.videoId = videoID;
+
+        // 显示加载遮罩
+        showVideoLoading(wrapper);
+
+        // 轮询状态
+        const pollInterval = 2000;
+        const maxAttempts = 150; // 5分钟
+        let attempts = 0;
+
+        while (attempts < maxAttempts) {
+            attempts++;
+            await delay(pollInterval);
+
+            const statusRes = await getVideoStatus(videoID);
+            if (statusRes.code !== 0) continue;
+
+            const { status, videoURL, errorMessage } = statusRes.data;
+
+            if (status === 'completed') {
+                hideVideoLoading(wrapper);
+                showVideoPlayer(wrapper, videoURL);
+                wrapper.dataset.videoStatus = 'completed';
+                wrapper.dataset.videoUrl = videoURL;
+                btn.textContent = '🔄';
+                toastr.success('视频生成成功！');
+                break;
+            } else if (status === 'failed') {
+                throw new Error(errorMessage || '视频生成失败');
+            }
+        }
+
+        if (attempts >= maxAttempts) {
+            throw new Error('视频生成超时');
+        }
+
+    } catch (err) {
+        hideVideoLoading(wrapper);
+        toastr.error(err.message || '视频生成失败');
+        btn.textContent = originalText;
+        showVideoError(wrapper, err.message);
+    }
+
+    btn.disabled = false;
+}
+
+function showVideoLoading(wrapper) {
+    let overlay = wrapper.querySelector('.comfy-video-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.className = 'comfy-video-overlay';
+        overlay.innerHTML = '<div class="comfy-video-loading">视频生成中...</div>';
+        wrapper.appendChild(overlay);
+    }
+    overlay.style.display = 'flex';
+}
+
+function hideVideoLoading(wrapper) {
+    const overlay = wrapper.querySelector('.comfy-video-overlay');
+    if (overlay) {
+        overlay.style.display = 'none';
+    }
+}
+
+function showVideoPlayer(wrapper, videoURL) {
+    let container = wrapper.querySelector('.comfy-video-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'comfy-video-container';
+        wrapper.appendChild(container);
+    }
+
+    container.innerHTML = `
+        <video class="comfy-video-player" controls>
+            <source src="${escapeHtml(videoURL)}" type="video/mp4">
+            您的浏览器不支持视频播放
+        </video>
+    `;
+}
+
+function showVideoError(wrapper, errorMsg) {
+    let container = wrapper.querySelector('.comfy-video-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'comfy-video-container';
+        wrapper.appendChild(container);
+    }
+
+    container.innerHTML = `<div class="comfy-error">${escapeHtml(errorMsg)}</div>`;
 }
 
 // ============ Generation Handler ============
@@ -1352,6 +1575,7 @@ function loadSettingsUI() {
     $("#comfy_end_marker").val(settings.endMarker);
     $("#comfy_global_positive").val(settings.globalPositive);
     $("#comfy_global_negative").val(settings.globalNegative);
+    $("#comfy_default_video_prompt").val(settings.defaultVideoPrompt);
     $("#comfy_auto_retry").prop("checked", settings.autoRetry);
     $("#comfy_show_prompt").prop("checked", settings.showPromptInResult);
     $("#comfy_nsfw_blur").prop("checked", settings.enableNsfwBlur);
@@ -1569,6 +1793,7 @@ function onSettingChange() {
     settings.endMarker = $("#comfy_end_marker").val() || defaultSettings.endMarker;
     settings.globalPositive = $("#comfy_global_positive").val();
     settings.globalNegative = $("#comfy_global_negative").val();
+    settings.defaultVideoPrompt = $("#comfy_default_video_prompt").val();
     settings.autoRetry = $("#comfy_auto_retry").prop("checked");
     settings.showPromptInResult = $("#comfy_show_prompt").prop("checked");
     settings.enableNsfwBlur = $("#comfy_nsfw_blur").prop("checked");
@@ -1651,6 +1876,7 @@ jQuery(async () => {
     $("#comfy_end_marker").on("input", onSettingChange);
     $("#comfy_global_positive").on("input", onSettingChange);
     $("#comfy_global_negative").on("input", onSettingChange);
+    $("#comfy_default_video_prompt").on("input", onSettingChange);
     $("#comfy_auto_retry").on("change", onSettingChange);
     $("#comfy_show_prompt").on("change", onSettingChange);
     $("#comfy_nsfw_blur").on("change", onSettingChange);
@@ -1701,6 +1927,13 @@ jQuery(async () => {
                 safeToastr('error', '复制失败');
             });
         }
+    });
+
+    // 事件委托：生成视频按钮
+    $(document).on("click", ".comfy-gen-video-btn", function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleVideoGenClick(e);
     });
 
     loadSettingsUI();
