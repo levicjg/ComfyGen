@@ -140,10 +140,8 @@ const IFRAME_INJECT_STYLES = `
     right: 8px;
     display: flex;
     gap: 4px;
-    opacity: 0;
-    transition: opacity 0.2s;
+    opacity: 1;
 }
-.comfy-image-wrapper:hover .comfy-image-actions { opacity: 1; }
 .comfy-action-btn {
     display: flex;
     align-items: center;
@@ -891,7 +889,7 @@ function hideLoading(box) {
 
 // 兼容旧代码
 function updateProgress(box, progress, statusText = '') {
-    showLoading(box, statusText || `${Math.round(progress)}%`);
+    showLoading(box, statusText || '生成中...');
 }
 
 function hideProgress(box) {
@@ -1194,7 +1192,7 @@ async function handleGenClick(event) {
 
                 if (progress !== lastProgress) {
                     lastProgress = progress;
-                    const statusText = status === 'processing' ? `生成中... ${Math.round(progress)}%` : `${Math.round(progress)}%`;
+                    const statusText = status === 'processing' ? '生成中...' : '生成中...';
                     updateProgress(box, progress, statusText);
                     btn.textContent = statusText;
                 }
