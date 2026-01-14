@@ -139,44 +139,53 @@ const IFRAME_INJECT_STYLES = `
     bottom: 8px;
     right: 8px;
     display: flex;
-    gap: 4px;
-    opacity: 1;
+    gap: 6px;
+    opacity: 1 !important;
+    visibility: visible !important;
 }
 .comfy-action-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 4px;
-    padding: 6px 10px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
     border: none;
     border-radius: var(--comfy-radius-sm);
-    background: rgba(0, 0, 0, 0.7);
+    background: rgba(0, 0, 0, 0.85);
     color: #fff;
-    font-size: 12px;
+    font-size: 16px;
     cursor: pointer;
     text-decoration: none;
-    white-space: nowrap;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
-.comfy-action-btn:hover { background: rgba(99, 102, 241, 0.8); }
+.comfy-action-btn:hover {
+    background: rgba(99, 102, 241, 0.95);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+}
 .comfy-video-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 4px;
-    padding: 6px 10px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
     border: none;
     border-radius: var(--comfy-radius-sm);
-    background: rgba(139, 92, 246, 0.7);
+    background: rgba(139, 92, 246, 0.9);
     color: #fff;
-    font-size: 12px;
+    font-size: 16px;
     cursor: pointer;
     text-decoration: none;
-    white-space: nowrap;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
 }
-.comfy-video-btn:hover { background: rgba(139, 92, 246, 0.9); }
-.comfy-video-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.comfy-video-btn:hover {
+    background: rgba(139, 92, 246, 1);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.5);
+}
+.comfy-video-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 .comfy-video-section {
     margin-top: 12px;
 }
@@ -198,16 +207,38 @@ const IFRAME_INJECT_STYLES = `
 .comfy-video-overlay {
     position: absolute;
     inset: 0;
-    background: rgba(0, 0, 0, 0.7);
+    background: rgba(0, 0, 0, 0.85);
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: 12px;
     z-index: 5;
+    backdrop-filter: blur(4px);
 }
 .comfy-video-loading {
-    color: #0ff;
-    font-size: 14px;
-    text-shadow: 0 0 10px #0ff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+}
+.comfy-video-spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid rgba(139, 92, 246, 0.2);
+    border-top: 4px solid rgb(139, 92, 246);
+    border-radius: 50%;
+    animation: comfy-spin 0.8s linear infinite;
+}
+@keyframes comfy-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+.comfy-video-loading-text {
+    color: rgb(139, 92, 246);
+    font-size: 15px;
+    font-weight: 500;
+    text-shadow: 0 0 10px rgba(139, 92, 246, 0.5);
 }
 .comfy-loading-container { margin-top: 12px; display: none; }
 .comfy-simple-loading {
@@ -939,17 +970,30 @@ function displayImages(resultDiv, images, prompt) {
         const videoBtn = hasHistoryId ? `
             <button class="comfy-video-btn comfy-gen-video-btn"
                     title="${img.videoId ? '重新生成视频' : '生成视频'}">
-                <span>📹</span><span>生成视频</span>
+                📹
             </button>
         ` : '';
 
+        // 处理视频 URL（拼接 baseUrl）
+        let videoURL = img.videoURL || '';
+        if (videoURL && !videoURL.startsWith('http://') && !videoURL.startsWith('https://')) {
+            const baseUrl = settings.baseUrl || '';
+            if (baseUrl.endsWith('/') && videoURL.startsWith('/')) {
+                videoURL = baseUrl + videoURL.slice(1);
+            } else if (!baseUrl.endsWith('/') && !videoURL.startsWith('/')) {
+                videoURL = baseUrl + '/' + videoURL;
+            } else {
+                videoURL = baseUrl + videoURL;
+            }
+        }
+
         // 已有视频则显示播放器
-        const videoPlayer = (img.videoURL && img.videoStatus === 'completed') ? `
+        const videoPlayer = (videoURL && img.videoStatus === 'completed') ? `
             <div class="comfy-video-section">
                 <div class="comfy-video-label">📹 视频</div>
                 <div class="comfy-video-container">
                     <video class="comfy-video-player" controls>
-                        <source src="${escapeHtml(img.videoURL)}" type="video/mp4">
+                        <source src="${escapeHtml(videoURL)}" type="video/mp4">
                         您的浏览器不支持视频播放
                     </video>
                 </div>
@@ -973,10 +1017,10 @@ function displayImages(resultDiv, images, prompt) {
                 <div class="comfy-image-actions">
                     ${videoBtn}
                     <button class="comfy-action-btn comfy-copy-btn" data-url="${escapeForDataAttr(url)}" title="复制链接">
-                        <span>📋</span><span>复制</span>
+                        📋
                     </button>
                     <a href="${escapeHtml(url)}" download class="comfy-action-btn" title="下载图片">
-                        <span>⬇️</span><span>下载</span>
+                        ⬇️
                     </a>
                 </div>
                 ${videoPlayer}
@@ -1137,9 +1181,22 @@ async function handleVideoGenClick(event) {
             const statusRes = await getVideoStatus(videoID);
             if (statusRes.code !== 0) continue;
 
-            const { status, videoURL, errorMessage } = statusRes.data;
+            let { status, videoURL, errorMessage } = statusRes.data;
 
             if (status === 'completed') {
+                // 处理视频 URL（拼接 baseUrl）
+                if (videoURL && !videoURL.startsWith('http://') && !videoURL.startsWith('https://')) {
+                    const settings = getSettings();
+                    const baseUrl = settings.baseUrl || '';
+                    if (baseUrl.endsWith('/') && videoURL.startsWith('/')) {
+                        videoURL = baseUrl + videoURL.slice(1);
+                    } else if (!baseUrl.endsWith('/') && !videoURL.startsWith('/')) {
+                        videoURL = baseUrl + '/' + videoURL;
+                    } else {
+                        videoURL = baseUrl + videoURL;
+                    }
+                }
+
                 hideVideoLoading(wrapper);
                 showVideoPlayer(wrapper, videoURL);
                 wrapper.dataset.videoStatus = 'completed';
@@ -1171,7 +1228,12 @@ function showVideoLoading(wrapper) {
     if (!overlay) {
         overlay = document.createElement('div');
         overlay.className = 'comfy-video-overlay';
-        overlay.innerHTML = '<div class="comfy-video-loading">视频生成中...</div>';
+        overlay.innerHTML = `
+            <div class="comfy-video-loading">
+                <div class="comfy-video-spinner"></div>
+                <div class="comfy-video-loading-text">📹 视频生成中...</div>
+            </div>
+        `;
         wrapper.appendChild(overlay);
     }
     overlay.style.display = 'flex';
