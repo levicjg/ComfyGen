@@ -1122,49 +1122,50 @@ function showVideoPromptDialog(defaultPrompt) {
     return new Promise((resolve) => {
         const overlay = document.createElement('div');
         overlay.style.cssText = `
-            position: fixed; inset: 0; background: rgba(0,0,0,0.7);
-            display: flex; align-items: center; justify-content: center; z-index: 9999;
-            padding: 20px; overflow-y: auto;
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.8); z-index: 9999;
+            display: flex; align-items: center; justify-content: center;
         `;
 
         const dialog = document.createElement('div');
         dialog.style.cssText = `
-            background: #1a1a1a; border-radius: 12px; padding: 24px;
-            max-width: 500px; width: 90%; box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-            max-height: 90vh; overflow-y: auto; margin: auto;
+            background: #1a1a1a; border-radius: 12px; padding: 20px;
+            max-width: 500px; width: calc(100% - 40px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6);
         `;
 
         dialog.innerHTML = `
-            <h3 style="margin: 0 0 16px 0; color: #fff; font-size: 18px;">📹 生成视频</h3>
+            <h3 style="margin: 0 0 12px 0; color: #fff; font-size: 16px; font-weight: 600;">📹 生成视频</h3>
             <div style="background: rgba(99,102,241,0.15); border: 1px solid rgba(99,102,241,0.3);
-                        border-radius: 8px; padding: 10px 12px; margin-bottom: 12px;">
-                <div style="color: rgba(99,102,241,1); font-size: 13px;">
-                    ℹ️ 当前使用 <strong>Grok</strong> 生成视频
+                        border-radius: 6px; padding: 8px 10px; margin-bottom: 10px;">
+                <div style="color: rgba(99,102,241,1); font-size: 12px;">
+                    ℹ️ 使用 <strong>Grok</strong> 生成视频
                 </div>
             </div>
             <div style="background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3);
-                        border-radius: 8px; padding: 12px; margin-bottom: 16px;">
-                <div style="color: #ef4444; font-size: 13px; line-height: 1.6;">
-                    ⚠️ <strong>重要提示：</strong>NSFW 内容大概率生成失败，请生成 SFW 内容
+                        border-radius: 6px; padding: 8px 10px; margin-bottom: 14px;">
+                <div style="color: #ef4444; font-size: 12px; line-height: 1.5;">
+                    ⚠️ NSFW 内容大概率生成失败
                 </div>
             </div>
-            <label style="display: block; color: rgba(255,255,255,0.9); margin-bottom: 8px; font-size: 14px;">
-                视频生成提示词：
+            <label style="display: block; color: rgba(255,255,255,0.9); margin-bottom: 8px; font-size: 13px; font-weight: 500;">
+                提示词：
             </label>
             <input type="text" id="comfy-video-prompt-input"
-                   style="width: 100%; padding: 10px 12px; background: #2a2a2a; border: 1px solid #444;
-                          border-radius: 6px; color: #fff; font-size: 14px; box-sizing: border-box;"
+                   style="width: 100%; padding: 12px; background: #2a2a2a; border: 1px solid #555;
+                          border-radius: 6px; color: #fff; font-size: 15px; box-sizing: border-box;
+                          outline: none;"
                    placeholder="留空使用默认提示词"
                    value="${escapeHtml(defaultPrompt)}">
-            <div style="display: flex; gap: 12px; margin-top: 20px; justify-content: flex-end;">
+            <div style="display: flex; gap: 10px; margin-top: 18px;">
                 <button id="comfy-video-cancel-btn"
-                        style="padding: 8px 20px; background: #444; border: none; border-radius: 6px;
+                        style="flex: 1; padding: 11px; background: #444; border: none; border-radius: 6px;
                                color: #fff; cursor: pointer; font-size: 14px;">
                     取消
                 </button>
                 <button id="comfy-video-confirm-btn"
-                        style="padding: 8px 20px; background: rgb(139,92,246); border: none; border-radius: 6px;
-                               color: #fff; cursor: pointer; font-size: 14px; font-weight: 500;">
+                        style="flex: 1; padding: 11px; background: rgb(139,92,246); border: none; border-radius: 6px;
+                               color: #fff; cursor: pointer; font-size: 14px; font-weight: 600;">
                     确定生成
                 </button>
             </div>
