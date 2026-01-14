@@ -1124,7 +1124,8 @@ function showVideoPromptDialog(defaultPrompt) {
         overlay.style.cssText = `
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(0,0,0,0.8); z-index: 9999;
-            display: flex; align-items: center; justify-content: center;
+            display: flex; align-items: flex-start; justify-content: center;
+            padding: 20px 0; overflow-y: auto;
         `;
 
         const dialog = document.createElement('div');
@@ -1132,6 +1133,7 @@ function showVideoPromptDialog(defaultPrompt) {
             background: #1a1a1a; border-radius: 12px; padding: 20px;
             max-width: 500px; width: calc(100% - 40px);
             box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+            margin: auto 0;
         `;
 
         dialog.innerHTML = `
