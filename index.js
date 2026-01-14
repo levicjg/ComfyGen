@@ -146,30 +146,34 @@ const IFRAME_INJECT_STYLES = `
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
+    gap: 4px;
+    padding: 6px 10px;
     height: 32px;
     border: none;
     border-radius: var(--comfy-radius-sm);
     background: rgba(0, 0, 0, 0.7);
     color: #fff;
-    font-size: 14px;
+    font-size: 12px;
     cursor: pointer;
     text-decoration: none;
+    white-space: nowrap;
 }
 .comfy-action-btn:hover { background: rgba(99, 102, 241, 0.8); }
 .comfy-video-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
+    gap: 4px;
+    padding: 6px 10px;
     height: 32px;
     border: none;
     border-radius: var(--comfy-radius-sm);
     background: rgba(139, 92, 246, 0.7);
     color: #fff;
-    font-size: 14px;
+    font-size: 12px;
     cursor: pointer;
     text-decoration: none;
+    white-space: nowrap;
 }
 .comfy-video-btn:hover { background: rgba(139, 92, 246, 0.9); }
 .comfy-video-btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -927,7 +931,7 @@ function displayImages(resultDiv, images, prompt) {
         const videoBtn = hasHistoryId ? `
             <button class="comfy-video-btn comfy-gen-video-btn"
                     title="${img.videoId ? '重新生成视频' : '生成视频'}">
-                📹
+                <span>📹</span><span>生成视频</span>
             </button>
         ` : '';
 
@@ -958,10 +962,10 @@ function displayImages(resultDiv, images, prompt) {
                 <div class="comfy-image-actions">
                     ${videoBtn}
                     <button class="comfy-action-btn comfy-copy-btn" data-url="${escapeForDataAttr(url)}" title="复制链接">
-                        📋
+                        <span>📋</span><span>复制</span>
                     </button>
                     <a href="${escapeHtml(url)}" download class="comfy-action-btn" title="下载图片">
-                        ⬇️
+                        <span>⬇️</span><span>下载</span>
                     </a>
                 </div>
                 ${videoPlayer}
