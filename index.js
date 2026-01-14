@@ -1020,6 +1020,12 @@ function showVideoPromptDialog(defaultPrompt) {
 
         dialog.innerHTML = `
             <h3 style="margin: 0 0 16px 0; color: #fff; font-size: 18px;">📹 生成视频</h3>
+            <div style="background: rgba(99,102,241,0.15); border: 1px solid rgba(99,102,241,0.3);
+                        border-radius: 8px; padding: 10px 12px; margin-bottom: 12px;">
+                <div style="color: rgba(99,102,241,1); font-size: 13px;">
+                    ℹ️ 当前使用 <strong>Grok</strong> 生成视频
+                </div>
+            </div>
             <div style="background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3);
                         border-radius: 8px; padding: 12px; margin-bottom: 16px;">
                 <div style="color: #ef4444; font-size: 13px; line-height: 1.6;">
