@@ -38,6 +38,10 @@ let presetsCache = [];
 let serversCache = [];
 const processedMessages = new Set();
 const processedIframes = new WeakSet(); // 记录已处理的 iframe，防止重复
+let isProcessingMessage = false; // 防止 MutationObserver 响应自身修改
+const messageAttempts = new Map(); // 记录每条消息的处理尝试次数
+const MAX_PROCESS_ATTEMPTS = 5;
+const pendingProcessTimers = new Map(); // 防抖定时器
 
 // ============ iframe 注入用的精简 CSS ============
 const IFRAME_INJECT_STYLES = `
@@ -1742,41 +1746,54 @@ async function processMessage(messageId) {
 
     if (mes.dataset.comfyProcessed === 'true') {
         processedMessages.add(mesKey);
-        // 即使消息已处理，仍检查 iframe（可能后加载）
         await processIframesInMessage(mes, messageId);
         return;
     }
 
+    // 记录尝试次数，超过上限则标记为已处理（避免无限重试）
+    const attempts = (messageAttempts.get(mesKey) || 0) + 1;
+    messageAttempts.set(mesKey, attempts);
+
     const pattern = buildPattern();
     const html = mesText.innerHTML;
 
-    // 处理主内容
     let hasMatch = pattern.test(html);
     pattern.lastIndex = 0;
 
     if (hasMatch) {
-        const newHtml = html.replace(pattern, (match, promptRaw) => {
-            const prompt = promptRaw.trim();
-            if (!prompt) return match;
-            return createGenComponent(prompt, messageId);
-        });
+        isProcessingMessage = true; // 标记：正在修改 DOM，MutationObserver 应忽略
+        try {
+            const newHtml = html.replace(pattern, (match, promptRaw) => {
+                const prompt = promptRaw.trim();
+                if (!prompt) return match;
+                return createGenComponent(prompt, messageId);
+            });
 
-        mesText.innerHTML = newHtml;
+            mesText.innerHTML = newHtml;
 
-        mesText.querySelectorAll('.comfy-gen-btn').forEach(btn => {
-            btn.addEventListener('click', handleGenClick);
-        });
+            mesText.querySelectorAll('.comfy-gen-btn').forEach(btn => {
+                btn.addEventListener('click', handleGenClick);
+            });
+        } finally {
+            isProcessingMessage = false;
+        }
+
+        // 找到并替换了标记 -> 标记为已处理
+        mes.dataset.comfyProcessed = 'true';
+        processedMessages.add(mesKey);
+        messageAttempts.delete(mesKey);
+        console.log(`[ComfyGen] 已处理消息 #${messageId}`);
+    } else if (attempts >= MAX_PROCESS_ATTEMPTS) {
+        // 多次尝试仍未找到标记 -> 放弃，标记为已处理
+        mes.dataset.comfyProcessed = 'true';
+        processedMessages.add(mesKey);
+        messageAttempts.delete(mesKey);
+        console.log(`[ComfyGen] 消息 #${messageId} 达到最大尝试次数，跳过`);
     }
-
-    mes.dataset.comfyProcessed = 'true';
-    processedMessages.add(mesKey);
+    // else: 没找到标记且未达上限 -> 不标记，允许 MutationObserver 再次触发
 
     // 处理 iframe 内容
     await processIframesInMessage(mes, messageId);
-
-    if (hasMatch) {
-        console.log(`[ComfyGen] 已处理消息 #${messageId}`);
-    }
 }
 
 async function processAllMessages() {
@@ -1794,6 +1811,12 @@ async function processAllMessages() {
 
 function resetProcessedState() {
     processedMessages.clear();
+    messageAttempts.clear();
+    // 清除所有待处理的防抖定时器
+    for (const timer of pendingProcessTimers.values()) {
+        clearTimeout(timer);
+    }
+    pendingProcessTimers.clear();
     // 注意：processedIframes 是 WeakSet，不需要手动清理
     // 当 iframe 元素被移除时，会自动被垃圾回收
 }
@@ -2195,23 +2218,30 @@ jQuery(async () => {
     const { eventSource, event_types } = SillyTavern.getContext();
 
     eventSource.on(event_types.CHARACTER_MESSAGE_RENDERED, (messageId) => {
-        processMessage(messageId);
+        setTimeout(() => processMessage(messageId).catch(err => {
+            console.error('[ComfyGen] processMessage error:', err);
+        }), 300);
     });
 
     eventSource.on(event_types.USER_MESSAGE_RENDERED, (messageId) => {
-        processMessage(messageId);
+        setTimeout(() => processMessage(messageId).catch(err => {
+            console.error('[ComfyGen] processMessage error:', err);
+        }), 300);
     });
 
     eventSource.on(event_types.MESSAGE_EDITED, (messageId) => {
         const mesKey = `msg-${messageId}`;
         processedMessages.delete(mesKey);
+        messageAttempts.delete(mesKey);
 
         const mes = document.querySelector(`#chat .mes[mesid="${messageId}"]`);
         if (mes) {
             delete mes.dataset.comfyProcessed;
         }
 
-        setTimeout(() => processMessage(messageId), 100);
+        setTimeout(() => processMessage(messageId).catch(err => {
+            console.error('[ComfyGen] processMessage error:', err);
+        }), 100);
     });
 
     eventSource.on(event_types.CHAT_CHANGED, () => {
@@ -2224,22 +2254,39 @@ jQuery(async () => {
         setTimeout(processAllMessages, 100);
     });
 
-    // MutationObserver: 监听动态插入的 iframe
+    // 防抖处理：合并同一消息的多次 DOM 变化
+    function scheduleProcessMessage(messageId) {
+        const mesKey = `msg-${messageId}`;
+        if (processedMessages.has(mesKey)) return;
+
+        if (pendingProcessTimers.has(mesKey)) {
+            clearTimeout(pendingProcessTimers.get(mesKey));
+        }
+        pendingProcessTimers.set(mesKey, setTimeout(() => {
+            pendingProcessTimers.delete(mesKey);
+            processMessage(messageId).catch(err => {
+                console.error('[ComfyGen] processMessage error:', err);
+            });
+        }, 300));
+    }
+
+    // MutationObserver: 监听动态插入的 iframe + mes_text 内容变化
     const chatContainer = document.querySelector('#chat');
     if (chatContainer) {
-        const iframeObserver = new MutationObserver((mutations) => {
+        const chatObserver = new MutationObserver((mutations) => {
+            if (isProcessingMessage) return; // 忽略自身 DOM 修改
+
             for (const mutation of mutations) {
-                // 检查新增节点中的 iframe
+                // --- 检查新增节点 ---
                 for (const node of mutation.addedNodes) {
                     if (node.nodeType !== Node.ELEMENT_NODE) continue;
 
-                    // 直接是 iframe
+                    // iframe 处理（保持原逻辑）
                     if (node.tagName === 'IFRAME') {
                         const mes = node.closest('.mes');
                         if (mes) {
                             const messageId = parseInt(mes.getAttribute('mesid'), 10);
                             if (!isNaN(messageId)) {
-                                // 绑定 load 事件
                                 node.addEventListener('load', () => {
                                     setTimeout(() => {
                                         processIframeContent(node, messageId);
@@ -2249,12 +2296,10 @@ jQuery(async () => {
                         }
                     }
 
-                    // 或者是包含 iframe 的元素
                     const iframes = node.querySelectorAll?.('iframe');
                     if (iframes) {
                         for (const iframe of iframes) {
                             if (processedIframes.has(iframe)) continue;
-
                             const mes = iframe.closest('.mes');
                             if (mes) {
                                 const messageId = parseInt(mes.getAttribute('mesid'), 10);
@@ -2268,16 +2313,43 @@ jQuery(async () => {
                             }
                         }
                     }
+
+                    // mes_text 内容变化：检查新增的子节点是否在 .mes_text 内
+                    const mesText = node.closest?.('.mes_text');
+                    if (mesText) {
+                        const mes = mesText.closest('.mes');
+                        if (mes && mes.dataset.comfyProcessed !== 'true') {
+                            const messageId = parseInt(mes.getAttribute('mesid'), 10);
+                            if (!isNaN(messageId)) {
+                                scheduleProcessMessage(messageId);
+                            }
+                        }
+                    }
+                }
+
+                // --- 检查 characterData 变化（文本节点更新）---
+                if (mutation.type === 'characterData') {
+                    const mesText = mutation.target.parentElement?.closest('.mes_text');
+                    if (mesText) {
+                        const mes = mesText.closest('.mes');
+                        if (mes && mes.dataset.comfyProcessed !== 'true') {
+                            const messageId = parseInt(mes.getAttribute('mesid'), 10);
+                            if (!isNaN(messageId)) {
+                                scheduleProcessMessage(messageId);
+                            }
+                        }
+                    }
                 }
             }
         });
 
-        iframeObserver.observe(chatContainer, {
+        chatObserver.observe(chatContainer, {
             childList: true,
-            subtree: true
+            subtree: true,
+            characterData: true,
         });
 
-        console.log('[ComfyGen] iframe 监听器已启动');
+        console.log('[ComfyGen] 聊天内容监听器已启动');
     }
 
     setTimeout(processAllMessages, 500);
