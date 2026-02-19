@@ -36,11 +36,8 @@ const MAX_POLL_ATTEMPTS = 200; // ~5 minutes at 1500ms interval
 
 let presetsCache = [];
 let serversCache = [];
-const processedMessages = new Set();
 const processedIframes = new WeakSet(); // 记录已处理的 iframe，防止重复
 let isProcessingMessage = false; // 防止 MutationObserver 响应自身修改
-const messageAttempts = new Map(); // 记录每条消息的处理尝试次数
-const MAX_PROCESS_ATTEMPTS = 5;
 const pendingProcessTimers = new Map(); // 防抖定时器
 
 // ============ iframe 注入用的精简 CSS ============
@@ -1735,33 +1732,20 @@ async function processMessage(messageId) {
     const settings = getSettings();
     if (!settings.enabled || !settings.apiKey || !settings.verified) return;
 
-    const mesKey = `msg-${messageId}`;
-    if (processedMessages.has(mesKey)) return;
-
     const mes = document.querySelector(`#chat .mes[mesid="${messageId}"]`);
     if (!mes) return;
 
     const mesText = mes.querySelector('.mes_text');
     if (!mesText) return;
 
-    if (mes.dataset.comfyProcessed === 'true') {
-        processedMessages.add(mesKey);
-        await processIframesInMessage(mes, messageId);
-        return;
-    }
-
-    // 记录尝试次数，超过上限则标记为已处理（避免无限重试）
-    const attempts = (messageAttempts.get(mesKey) || 0) + 1;
-    messageAttempts.set(mesKey, attempts);
-
+    // 直接检查 DOM 内容是否包含未替换的标记（不依赖状态缓存）
     const pattern = buildPattern();
     const html = mesText.innerHTML;
-
     let hasMatch = pattern.test(html);
     pattern.lastIndex = 0;
 
     if (hasMatch) {
-        isProcessingMessage = true; // 标记：正在修改 DOM，MutationObserver 应忽略
+        isProcessingMessage = true;
         try {
             const newHtml = html.replace(pattern, (match, promptRaw) => {
                 const prompt = promptRaw.trim();
@@ -1778,19 +1762,8 @@ async function processMessage(messageId) {
             isProcessingMessage = false;
         }
 
-        // 找到并替换了标记 -> 标记为已处理
-        mes.dataset.comfyProcessed = 'true';
-        processedMessages.add(mesKey);
-        messageAttempts.delete(mesKey);
         console.log(`[ComfyGen] 已处理消息 #${messageId}`);
-    } else if (attempts >= MAX_PROCESS_ATTEMPTS) {
-        // 多次尝试仍未找到标记 -> 放弃，标记为已处理
-        mes.dataset.comfyProcessed = 'true';
-        processedMessages.add(mesKey);
-        messageAttempts.delete(mesKey);
-        console.log(`[ComfyGen] 消息 #${messageId} 达到最大尝试次数，跳过`);
     }
-    // else: 没找到标记且未达上限 -> 不标记，允许 MutationObserver 再次触发
 
     // 处理 iframe 内容
     await processIframesInMessage(mes, messageId);
@@ -1810,8 +1783,6 @@ async function processAllMessages() {
 }
 
 function resetProcessedState() {
-    processedMessages.clear();
-    messageAttempts.clear();
     // 清除所有待处理的防抖定时器
     for (const timer of pendingProcessTimers.values()) {
         clearTimeout(timer);
@@ -2230,15 +2201,6 @@ jQuery(async () => {
     });
 
     eventSource.on(event_types.MESSAGE_EDITED, (messageId) => {
-        const mesKey = `msg-${messageId}`;
-        processedMessages.delete(mesKey);
-        messageAttempts.delete(mesKey);
-
-        const mes = document.querySelector(`#chat .mes[mesid="${messageId}"]`);
-        if (mes) {
-            delete mes.dataset.comfyProcessed;
-        }
-
         setTimeout(() => processMessage(messageId).catch(err => {
             console.error('[ComfyGen] processMessage error:', err);
         }), 100);
@@ -2254,11 +2216,37 @@ jQuery(async () => {
         setTimeout(processAllMessages, 100);
     });
 
+    // 从 DOM 变化中提取受影响的消息 ID
+    function collectAffectedMessages(node) {
+        const result = [];
+        if (node.nodeType !== Node.ELEMENT_NODE) return result;
+
+        // 节点本身是 .mes 或包含 .mes
+        if (node.matches?.('.mes')) {
+            const mesid = node.getAttribute('mesid');
+            if (mesid) result.push(parseInt(mesid, 10));
+        }
+        const innerMessages = node.querySelectorAll?.('.mes');
+        if (innerMessages) {
+            for (const mes of innerMessages) {
+                const mesid = mes.getAttribute('mesid');
+                if (mesid) result.push(parseInt(mesid, 10));
+            }
+        }
+
+        // 节点在 .mes 内部（子节点变化）
+        const parentMes = node.closest?.('.mes');
+        if (parentMes) {
+            const mesid = parentMes.getAttribute('mesid');
+            if (mesid) result.push(parseInt(mesid, 10));
+        }
+
+        return result;
+    }
+
     // 防抖处理：合并同一消息的多次 DOM 变化
     function scheduleProcessMessage(messageId) {
         const mesKey = `msg-${messageId}`;
-        if (processedMessages.has(mesKey)) return;
-
         if (pendingProcessTimers.has(mesKey)) {
             clearTimeout(pendingProcessTimers.get(mesKey));
         }
@@ -2270,18 +2258,20 @@ jQuery(async () => {
         }, 300));
     }
 
-    // MutationObserver: 监听动态插入的 iframe + mes_text 内容变化
+    // MutationObserver: 实时监听 DOM 变化
     const chatContainer = document.querySelector('#chat');
     if (chatContainer) {
         const chatObserver = new MutationObserver((mutations) => {
-            if (isProcessingMessage) return; // 忽略自身 DOM 修改
+            if (isProcessingMessage) return;
+
+            const affectedIds = new Set();
 
             for (const mutation of mutations) {
-                // --- 检查新增节点 ---
+                // 新增节点
                 for (const node of mutation.addedNodes) {
                     if (node.nodeType !== Node.ELEMENT_NODE) continue;
 
-                    // iframe 处理（保持原逻辑）
+                    // iframe 处理
                     if (node.tagName === 'IFRAME') {
                         const mes = node.closest('.mes');
                         if (mes) {
@@ -2314,31 +2304,26 @@ jQuery(async () => {
                         }
                     }
 
-                    // mes_text 内容变化：检查新增的子节点是否在 .mes_text 内
-                    const mesText = node.closest?.('.mes_text');
-                    if (mesText) {
-                        const mes = mesText.closest('.mes');
-                        if (mes && mes.dataset.comfyProcessed !== 'true') {
-                            const messageId = parseInt(mes.getAttribute('mesid'), 10);
-                            if (!isNaN(messageId)) {
-                                scheduleProcessMessage(messageId);
-                            }
-                        }
+                    // 收集受影响的消息（向上查找 + 向下查找）
+                    for (const id of collectAffectedMessages(node)) {
+                        affectedIds.add(id);
                     }
                 }
 
-                // --- 检查 characterData 变化（文本节点更新）---
+                // characterData 变化（文本节点更新）
                 if (mutation.type === 'characterData') {
-                    const mesText = mutation.target.parentElement?.closest('.mes_text');
-                    if (mesText) {
-                        const mes = mesText.closest('.mes');
-                        if (mes && mes.dataset.comfyProcessed !== 'true') {
-                            const messageId = parseInt(mes.getAttribute('mesid'), 10);
-                            if (!isNaN(messageId)) {
-                                scheduleProcessMessage(messageId);
-                            }
-                        }
+                    const parentMes = mutation.target.parentElement?.closest('.mes');
+                    if (parentMes) {
+                        const mesid = parentMes.getAttribute('mesid');
+                        if (mesid) affectedIds.add(parseInt(mesid, 10));
                     }
+                }
+            }
+
+            // 对所有受影响的消息调度处理
+            for (const messageId of affectedIds) {
+                if (!isNaN(messageId)) {
+                    scheduleProcessMessage(messageId);
                 }
             }
         });
@@ -2351,6 +2336,30 @@ jQuery(async () => {
 
         console.log('[ComfyGen] 聊天内容监听器已启动');
     }
+
+    // 轮询兜底：每 2 秒扫描一次未处理的标记
+    setInterval(() => {
+        const settings = getSettings();
+        if (!settings.enabled || !settings.apiKey || !settings.verified) return;
+
+        const pattern = buildPattern();
+        document.querySelectorAll('#chat .mes .mes_text').forEach(mesText => {
+            const html = mesText.innerHTML;
+            if (pattern.test(html)) {
+                pattern.lastIndex = 0;
+                const mes = mesText.closest('.mes');
+                if (mes) {
+                    const messageId = parseInt(mes.getAttribute('mesid'), 10);
+                    if (!isNaN(messageId)) {
+                        processMessage(messageId).catch(err => {
+                            console.error('[ComfyGen] 轮询 processMessage error:', err);
+                        });
+                    }
+                }
+            }
+            pattern.lastIndex = 0;
+        });
+    }, 2000);
 
     setTimeout(processAllMessages, 500);
 
