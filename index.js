@@ -1738,13 +1738,19 @@ async function processMessage(messageId) {
     const mesText = mes.querySelector('.mes_text');
     if (!mesText) return;
 
-    // 直接检查 DOM 内容是否包含未替换的标记（不依赖状态缓存）
+    // 检查 DOM 内容是否包含未替换的标记
     const pattern = buildPattern();
     const html = mesText.innerHTML;
     let hasMatch = pattern.test(html);
     pattern.lastIndex = 0;
 
     if (hasMatch) {
+        // 稳定性检查：等 500ms 后再次检查内容是否变化
+        // 如果内容仍在变化（流式传输中），跳过本次处理，等下次触发
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const currentHtml = mesText.innerHTML;
+        if (currentHtml !== html) return; // 内容仍在变化，跳过
+
         isProcessingMessage = true;
         try {
             const newHtml = html.replace(pattern, (match, promptRaw) => {
